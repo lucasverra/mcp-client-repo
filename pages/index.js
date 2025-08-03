@@ -12,6 +12,10 @@ function throwError() {
 
 function Home() {
   const [count, setCount] = useState(0)
+  // Dialog states
+  const [dialogMsg, setDialogMsg] = useState('')
+  const [dialogResponse, setDialogResponse] = useState([])
+  const [loading, setLoading] = useState(false)
   const increment = useCallback(() => {
     setCount((v) => v + 1)
   }, [setCount])
@@ -35,6 +39,51 @@ function Home() {
         state.
       </p>
       <hr className={styles.hr} />
+      {/* Dialog with MCP server */}
+      <div>
+        <h2>Dialog with Actor</h2>
+        <input
+          type="text"
+          value={dialogMsg}
+          onChange={(e) => setDialogMsg(e.target.value)}
+          placeholder="Type your message"
+          style={{ padding: '8px', width: '60%' }}
+        />
+        <button
+          onClick={async () => {
+            setLoading(true)
+            try {
+              const res = await fetch('/api/dialog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: dialogMsg }),
+              })
+              const data = await res.json()
+              if (res.ok) setDialogResponse(data.response)
+              else console.error(data.error)
+            } catch (err) {
+              console.error(err)
+            } finally {
+              setLoading(false)
+            }
+          }}
+          disabled={loading || !dialogMsg}
+          style={{ marginLeft: '8px', padding: '8px' }}
+        >
+          Send
+        </button>
+        {loading && <p>Loading...</p>}
+        {dialogResponse.length > 0 && (
+          <div>
+            <h3>Response:</h3>
+            <ul>
+              {dialogResponse.map((item, idx) => (
+                <li key={idx}>{JSON.stringify(item)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
       <div>
         <p>
           Auto incrementing value. The counter won't reset after edits or if
