@@ -16,6 +16,8 @@ function Home() {
   const [dialogMsg, setDialogMsg] = useState('')
   const [dialogResponse, setDialogResponse] = useState([])
   const [loading, setLoading] = useState(false)
+  const [conversationHistory, setConversationHistory] = useState([])
+  
   const increment = useCallback(() => {
     setCount((v) => v + 1)
   }, [setCount])
@@ -30,60 +32,149 @@ function Home() {
     }
   }, [increment])
 
+  const sendMessage = async () => {
+    if (!dialogMsg.trim()) return;
+    
+    setLoading(true);
+    const userMessage = dialogMsg;
+    setDialogMsg('');
+    
+    try {
+      const res = await fetch('/api/dialog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage }),
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setDialogResponse(data.response);
+        // Add to conversation history
+        setConversationHistory(prev => [...prev, {
+          user: userMessage,
+          assistant: data.response,
+          timestamp: new Date().toLocaleTimeString()
+        }]);
+      } else {
+        console.error(data.error);
+        setConversationHistory(prev => [...prev, {
+          user: userMessage,
+          assistant: { error: data.error },
+          timestamp: new Date().toLocaleTimeString()
+        }]);
+      }
+    } catch (err) {
+      console.error(err);
+      setConversationHistory(prev => [...prev, {
+        user: userMessage,
+        assistant: { error: 'Network error occurred' },
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatResponse = (response) => {
+    if (Array.isArray(response)) {
+      return response.map((item, idx) => (
+        <div key={idx} style={{ marginBottom: '10px', padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '5px' }}>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '12px' }}>
+            {JSON.stringify(item, null, 2)}
+          </pre>
+        </div>
+      ));
+    }
+    return <pre>{JSON.stringify(response, null, 2)}</pre>;
+  };
+
   return (
     <main className={styles.main}>
-      <h1>Fast Refresh Demo</h1>
+      <h1>🤖 MCP Server Interface</h1>
       <p>
-        Fast Refresh is a Next.js feature that gives you instantaneous feedback
-        on edits made to your React components, without ever losing component
-        state.
+        Interact with the Apify MCP server using natural language. This interface connects to the Twitter/X data scraper.
       </p>
+      
       <hr className={styles.hr} />
-      {/* Dialog with MCP server */}
-      <div>
-        <h2>Dialog with Actor</h2>
-        <input
-          type="text"
-          value={dialogMsg}
-          onChange={(e) => setDialogMsg(e.target.value)}
-          placeholder="Type your message"
-          style={{ padding: '8px', width: '60%' }}
-        />
-        <button
-          onClick={async () => {
-            setLoading(true)
-            try {
-              const res = await fetch('/api/dialog', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: dialogMsg }),
-              })
-              const data = await res.json()
-              if (res.ok) setDialogResponse(data.response)
-              else console.error(data.error)
-            } catch (err) {
-              console.error(err)
-            } finally {
-              setLoading(false)
-            }
-          }}
-          disabled={loading || !dialogMsg}
-          style={{ marginLeft: '8px', padding: '8px' }}
-        >
-          Send
-        </button>
-        {loading && <p>Loading...</p>}
-        {dialogResponse.length > 0 && (
-          <div>
-            <h3>Response:</h3>
-            <ul>
-              {dialogResponse.map((item, idx) => (
-                <li key={idx}>{JSON.stringify(item)}</li>
+      
+      {/* Enhanced Dialog with MCP server */}
+      <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+        <h2>💬 Chat with MCP Server</h2>
+        
+        {/* Input area */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <input
+            type="text"
+            value={dialogMsg}
+            onChange={(e) => setDialogMsg(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder="Type your natural language request (e.g., 'Search for tweets about AI')"
+            style={{ 
+              flex: 1,
+              padding: '12px', 
+              fontSize: '16px',
+              border: '1px solid #ddd',
+              borderRadius: '5px'
+            }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={loading || !dialogMsg.trim()}
+            style={{ 
+              padding: '12px 20px',
+              backgroundColor: loading ? '#ccc' : '#0070f3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '16px'
+            }}
+          >
+            {loading ? '🔄 Sending...' : '📤 Send'}
+          </button>
+        </div>
+
+        {/* Conversation History */}
+        {conversationHistory.length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            <h3>📋 Conversation History</h3>
+            <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '5px', padding: '10px' }}>
+              {conversationHistory.map((entry, idx) => (
+                <div key={idx} style={{ marginBottom: '15px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                  <div style={{ marginBottom: '5px' }}>
+                    <strong>👤 You ({entry.timestamp}):</strong>
+                    <div style={{ marginLeft: '20px', color: '#333' }}>{entry.user}</div>
+                  </div>
+                  <div>
+                    <strong>🤖 Assistant:</strong>
+                    <div style={{ marginLeft: '20px' }}>
+                      {entry.assistant.error ? (
+                        <span style={{ color: 'red' }}>❌ {entry.assistant.error}</span>
+                      ) : (
+                        formatResponse(entry.assistant)
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Latest Response */}
+        {dialogResponse.length > 0 && !loading && (
+          <div>
+            <h3>📄 Latest Response:</h3>
+            <div style={{ backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '5px', border: '1px solid #ddd' }}>
+              {formatResponse(dialogResponse)}
+            </div>
           </div>
         )}
       </div>
+
+      <hr className={styles.hr} />
+      
+      {/* Original demo content */}
       <div>
         <p>
           Auto incrementing value. The counter won't reset after edits or if
